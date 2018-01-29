@@ -1,0 +1,127 @@
+---
+title: "A Practicing Assignment of R Markdown"
+author: Xinran Zheng^[<xinran.zheng@uconn.edu>; graduate student at Department of
+  Mathmatics, University of Connecticut.]
+date: "Janurary 28th, 2018"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+documentclass: article
+fontsize: 12pt
+biblio-style: datalab
+papersize: letter
+abstract: |
+  This is a practice considering the approximation of the distribution function of N(0,1) by the Monte Carlo methods. Experiments are done with different samples, and are repeated for 100 times. Also, true values are determined using a build-in function of R. Comparisons and bias are showed in box plots and tables.
+---
+
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+## some utility functions, see the source code for details
+#source("utils_template.R")
+
+## specify the packages needed
+pkgs <- c("splines2", "DT", "webshot", "leaflet")
+#need.packages(pkgs)
+
+## external data can be read in by regular functions,
+## such as read.table or load
+
+## get output format in case something needs extra effort
+outFormat <- knitr::opts_knit$get("rmarkdown.pandoc.to")
+## "latex" or "html"
+
+## for latex and html output
+isHtml <- identical(outFormat, "html")
+isLatex <- identical(outFormat, "latex")
+latex <- ifelse(isLatex, '\\LaTeX\\', 'LaTeX')
+
+## specify global chunk options
+knitr::opts_chunk$set(fig.width = 5, fig.height = 4, dpi = 300,
+                      out.width = "90%", fig.align = "center")
+
+```
+
+
+# Introduction {#sec:intro}
+
+This document is a presentation about using Monte Carlo method to simulate the value of the error function of a normal distribution which has mean 0 and variance 1.
+
+
+# Methodologies {#sec:methods}
+
+The value of the function $\Phi(t) = \int_{\infty}^{t} \frac{1}{2\pi}e^{-y^2/2} dy$ equals $P\{x|x\le t, x\in N(0,1)\}$. The value of the probablity could be approximately calculate by the Monte Carlo methods $\frac{1}{n}\Sigma_{i=1}^{n}I(X_i\le t)$. We choose $n\in \{10^2, 10^3, 10^4 \}$ and $t\in \{0.0,0.67,0.84,1.28,1.65,2.32,2.58,3.09,3.72 \}$ to observe the outcomes.
+
+
+<!-- source extracted from bookdown package  -->
+# Code and Results
+
+For each $n\in \{10^2, 10^3, 10^4 \}$, we run the simulation 100 times, record the outcomes and bias. The code is shown below. 
+
+```{r}
+
+MonteCarlo <- function(n, t)
+{ # function MonteCarlo
+  normalVariables <- rnorm(n, 0, 1)
+  signalVector <- pmax(sign(normalVariables - t), rep(0, n))
+  countLargerThanT <- sum(signalVector)
+  return((n - countLargerThanT) / n)
+} # end function MonteCarlo
+
+RealValue <- function(t)
+{ # function RealValue
+  return(pnorm(t, 0, 1))
+} # end function RealValue
+
+Bias <- function(t, n)
+{ # function Bias
+  bias <- array(NA, dim = c(length(n), length(t), 100))
+  monteCarlo <- array(NA, dim = c(length(n), length(t), 100))
+  for (i in 1:length(t))
+  { # for i
+    for (j in 1:length(n))
+    { # for j
+      for (k in 1:100)
+      { # for k
+        bias[j, i, k] <- abs((RealValue(t[i]) - MonteCarlo(n[j], t[i])))
+        monteCarlo[j, i, k] <- MonteCarlo(n[j], t[i])
+      } # end for k
+    } # end for j
+  } # end for i
+  meanMonteCarlo <- apply(monteCarlo, MARGIN = c(1,2), FUN = mean)
+  return(list(bias, meanMonteCarlo))
+} # end function Bias
+
+n <- c(100, 1000, 10000)
+t <- c(0, 0.67, 0.84, 1.28, 1.65, 2.32, 2.58, 3.09, 3.72)
+
+bias <- Bias(t, n)[[1]]
+meanMonteCarlo <- Bias(t, n)[[2]]
+
+```
+
+The bias of the result array of size $3 \times 9 \times 100$ could be displayed in one box plot, whose horizontal axis represents the names of observations and each box represents the error vectors of length $100$.  
+
+```{r autodep = TRUE, echo = FALSE}
+
+y1 <- as.data.frame(t(bias[1, , ]))
+y2 <- as.data.frame(t(bias[2, , ]))
+y3 <- as.data.frame(t(bias[3, , ]))
+colnames(y1) <- t
+colnames(y2) <- t
+colnames(y3) <- t
+boxplot(y1, outline = FALSE, at = 1:9, xlim = c(1,30))
+boxplot(y2, outline = FALSE, at = 10:18, add = TRUE)
+boxplot(y3, outline = FALSE, at = 19:27, add = TRUE)
+
+```
+
+We shall also compare the real values of integrals with the average value of corresponding Monte Carlo simulations, which is shown in the table below.
+
+```{r autodep = TRUE, echo = FALSE}
+
+rowNames <- c("n = 100", "n = 1000", "n = 10000", "Real Value")
+table <- as.data.frame(rbind(meanMonteCarlo, RealValue(t)), row.names = rowNames)
+knitr::kable(table, format = "markdown", col.names = t, row.names = TRUE, digits = 4)
+
+```
